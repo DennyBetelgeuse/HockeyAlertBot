@@ -2,13 +2,16 @@ const { google } = require('googleapis');
 const TelegramBot = require('node-telegram-bot-api');
 
 // Настройки
-const SPREADSHEET_ID = 'example_sheet_id';
+const SPREADSHEET_ID = 'example';
 const SHEET_NAME = 'Sheet1';
-const TELEGRAM_TOKEN = 'example_bot_token'; // Замените на ваш токен
-const CHAT_ID = 'example_used_id'; // Замените на ваш chat_id
+const TELEGRAM_TOKEN = 'example'; // Замените на ваш токен
+const CHAT_ID = 'example'; // Замените на ваш chat_id
 
 // Инициализация бота
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+
+// Переменная для отслеживания состояния бота
+let botActive = true;
 
 // Авторизация в Google Sheets
 const auth = new google.auth.GoogleAuth({
@@ -18,8 +21,8 @@ const auth = new google.auth.GoogleAuth({
 
 const sheets = google.sheets({ version: 'v4', auth });
 
-// Функция для проверки, содержит ли диапазон текст "Denis B"
-async function containsDenisB(range) {
+// Функция для проверки, содержит ли диапазон текст "Name"
+async function containsName(range) {
     try {
         const res = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
@@ -34,10 +37,10 @@ async function containsDenisB(range) {
             return false;
         }
 
-        // Проверяем, есть ли текст "Denis B" в любой ячейке диапазона
-        return values.some(row => row.some(cell => cell.includes('Denis B')));
+        // Проверяем, есть ли текст "Name" в любой ячейке диапазона
+        return values.some(row => row.some(cell => cell.includes('Name')));
     } catch (error) {
-        console.error('Ошибка при проверке текста "Denis B":', error);
+        console.error('Ошибка при проверке текста "Name":', error);
         return false;
     }
 }
@@ -113,23 +116,28 @@ async function checkCellE16() {
 // Основная функция для проверки пустых ячеек
 async function checkEmptyCells() {
     try {
+        if (!botActive) {
+            console.log('Бот выключен. Уведомления не отправляются.');
+            return;
+        }
+
         const ranges = ['B2:B16', 'E2:E16'];
 
-        // Проверяем, есть ли текст "Denis B" в указанных диапазонах
-        let hasDenisB = false;
+        // Проверяем, есть ли текст "Name" в указанных диапазонах
+        let hasName = false;
         for (const range of ranges) {
-            if (await containsDenisB(range)) {
-                hasDenisB = true;
+            if (await containsName(range)) {
+                hasName = true;
                 break;
             }
         }
 
-        if (hasDenisB) {
-            console.log('Текст "Denis B" найден. Уведомления отключены.');
+        if (hasName) {
+            console.log('Текст "Name" найден. Уведомления отключены.');
             return; // Прекращаем выполнение, если текст найден
         }
 
-        // Если текст "Denis B" не найден, проверяем пустые ячейки
+        // Если текст "Name" не найден, проверяем пустые ячейки
         let isEmpty = false;
 
         // Проверяем диапазоны
@@ -160,6 +168,35 @@ async function checkEmptyCells() {
         console.error('Ошибка в checkEmptyCells:', error);
     }
 }
+
+// Команда /start
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    const options = {
+        reply_markup: {
+            keyboard: [
+                ['/on', '/off']
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+        }
+    };
+    bot.sendMessage(chatId, 'Выберите команду:', options);
+});
+
+// Команда /on
+bot.onText(/\/on/, (msg) => {
+    const chatId = msg.chat.id;
+    botActive = true;
+    bot.sendMessage(chatId, 'Бот включен. Уведомления активированы.');
+});
+
+// Команда /off
+bot.onText(/\/off/, (msg) => {
+    const chatId = msg.chat.id;
+    botActive = false;
+    bot.sendMessage(chatId, 'Бот выключен. Уведомления отключены.');
+});
 
 // Проверка каждые 10 секунд (для теста)
 setInterval(checkEmptyCells, 10000);
